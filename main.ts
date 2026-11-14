@@ -1,30 +1,31 @@
 // btc-cent-forecast-01: adaptive OLS forecaster for Bitcoin's price 240 minutes ahead.
 //
-// The program reads one case (4,320 one-minute closes of BTC/USDC, 72 hours up to a
-// checkpoint) and writes one guess: the price it expects 240 minutes after the checkpoint.
-// The score is the mean absolute error in cents, so the best guess is the honest
-// conditional median of the price 4 hours out.
+// Reads one case (4,320 one-minute closes of BTC/USDC, 72 hours up to a checkpoint)
+// and writes one guess: the price expected 240 minutes after the checkpoint. The score
+// is the mean absolute error in cents, so the best guess is the honest conditional
+// median of the price 4 hours out.
 //
 // Method:
-//   1. Features, all computed from the case's own closes: log returns over 60 / 240 /
-//      720 / 1440 minutes, and log gaps of the last close to its 6-hour and 24-hour
-//      means. Short-window trend extrapolation hurts (tested: it blows up the error),
-//      but the 12-hour return carries momentum and the gap to the 6-hour mean carries
+//   1. Features, all from the case's own closes: log returns over 60 / 240 / 720 /
+//      1440 minutes, and log gaps of the last close to its 6-hour and 24-hour means.
+//      Short-window trend extrapolation hurts (tested: it blows up the error), but
+//      the 12-hour return carries momentum and the gap to the 6-hour mean carries
 //      mean reversion, and together they predict the next 4 hours.
-//   2. The program fits an OLS regression of the 240-minute forward log return on those
-//      six features, using the case's own history: every 60th minute from minute 1440
-//      to minute 4079, each with its realised 240-minute return. The fit is done fresh
-//      for every case, so it adapts to the regime the case itself shows.
-//   3. The fit is ridge-regularised toward a prior: coefficients fitted offline by the
-//      same OLS on the practice recording (2026-11-08 to 2026-11-10, 10-minute samples).
-//      The prior keeps the in-case fit stable when the case's own data is noisy; the
-//      case's data still moves the coefficients where it has a clear say.
-//   4. The predicted log return is shrunk by 0.7 toward zero and clipped to +/-2% per
-//      4 hours. Shrinkage is what makes the model generalise: full-strength predictions
-//      win on one day and fail badly on the next; shrunk ones win on every day tested.
-//   5. Fallbacks, in order: the ridge fit; a pull of 0.4 toward the 6-hour mean; the
-//      last close (persistence). The program never crashes on a well-formed case and
-//      always writes a valid output file.
+//   2. An OLS regression of the 240-minute forward log return on those six features,
+//      fitted on the case's own history: every 60th minute from minute 1440 to
+//      minute 4079, each with its realised 240-minute return. The fit is redone for
+//      every case, so it adapts to the regime the case itself shows.
+//   3. The fit is ridge-regularised toward a prior: coefficients fitted offline by
+//      the same OLS on the practice recording (2026-11-08 to 2026-11-10, 10-minute
+//      samples). The prior keeps the in-case fit stable when the case's own data is
+//      noisy; the case's data still moves the coefficients where it has a clear say.
+//   4. The predicted log return is shrunk by 0.7 toward zero and clipped to +/-2%
+//      per 4 hours. Shrinkage is what makes the model generalise: full-strength
+//      predictions win on one day and fail badly on the next; shrunk ones win on
+//      every day tested.
+//   5. Fallbacks, in order: the ridge fit; a pull of 0.4 toward the 6-hour mean;
+//      the last close (persistence). The program never crashes on a well-formed
+//      case and always writes a valid output file.
 //
 // Honest local validation (walk-forward on the practice recording, checkpoints the
 // model never saw while fitting; the prior for validation was fitted on 11-08+11-09
@@ -155,8 +156,26 @@ function fitRidge(X: number[][], y: number[], prior: number[], kappa: number): n
 function forecast(prices: number[]): number {
   const n = prices.length;
   if (n === 0) throw new Error('market has no prices');
+  // A bad tick (zero, negative, or non-finite price) would poison every log
+  // return that touches it. Replace any such tick with the nearest good price;
+  // on well-formed data this changes nothing.
+  let firstGood = NaN;
+  for (let i = 0; i < n; i++) {
+    const p = prices[i] as number;
+    if (typeof p === 'number' && Number.isFinite(p) && p > 0) { firstGood = p; break; }
+  }
+  if (!Number.isFinite(firstGood)) throw new Error('market has no usable prices');
+  let lastGood = firstGood;
+  for (let i = 0; i < n; i++) {
+    const p = prices[i] as number;
+    if (typeof p === 'number' && Number.isFinite(p) && p > 0) {
+      lastGood = p;
+    } else {
+      prices[i] = lastGood;
+    }
+  }
   const last = prices[n - 1] as number;
-  if (typeof last !== 'number' || !Number.isFinite(last)) throw new Error("market's last price is not a finite number");
+  if (typeof last !== 'number' || !Number.isFinite(last) || last <= 0) throw new Error("market's last price is not a finite positive number");
 
   // Too little history to fit: fall back to the 6-hour mean pull, then persistence.
   const meanOf = (from: number, to: number): number => {
