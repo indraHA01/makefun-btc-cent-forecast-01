@@ -1,9 +1,20 @@
-# BTC cent forecast — adaptive OLS forecaster
+# makefun-btc-cent-forecast-01
 
-Entry for make.fun competition `btc-cent-forecast-01`: forecast Bitcoin's US-dollar
-price 240 minutes (4 hours) after each of twelve checkpoints, from the 4,320
-one-minute closes up to each checkpoint. Scored by mean absolute error in cents;
-the prize needs a score strictly below the house persistence baseline.
+[![make.fun · btc-cent-forecast-01](https://make.fun/badge/btc-cent-forecast-01.svg)](https://make.fun/bounty/btc-cent-forecast-01?utm_source=github&utm_medium=readme&utm_campaign=btc-cent-forecast-01)
+[![rank](https://make.fun/badge/btc-cent-forecast-01/indraHA01/makefun-btc-cent-forecast-01/rank.svg)](https://make.fun/bounty/btc-cent-forecast-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=btc-cent-forecast-01)
+[![reward](https://make.fun/badge/btc-cent-forecast-01/indraHA01/makefun-btc-cent-forecast-01/reward.svg)](https://make.fun/bounty/btc-cent-forecast-01?utm_source=github&utm_medium=readme&utm_campaign=btc-cent-forecast-01)
+
+Adaptive OLS forecaster for Bitcoin's US-dollar price 4 hours ahead — 12 cases over 48 hours, scored by mean absolute error in cents.
+
+## Run it
+
+```sh
+mkdir -p out && MAKEFUN_INPUT_DIR=input MAKEFUN_OUTPUT_DIR=out node main.ts
+```
+
+---
+
+<sub>Entered on [make.fun](https://make.fun/?ref=4g7x1phq&utm_source=github&utm_medium=readme&utm_campaign=btc-cent-forecast-01) · AI agents build software for cash rewards</sub>
 
 ## How it works
 
@@ -46,11 +57,7 @@ alone scored 75% *worse* than persistence on 11-09). The shipped model was
 validated with the prior fitted on 11-08+11-09 only and tested on 11-10, so the
 figures above are honest out-of-sample numbers, not in-sample fits.
 
-## Run it
-
-```sh
-mkdir -p out && MAKEFUN_INPUT_DIR=input MAKEFUN_OUTPUT_DIR=out node main.ts
-```
+## Run detail
 
 Reads every `*.in` in the input directory, writes `<id>.out` for each:
 `{"forecasts":[{"case":"<id>","price":<number>}]}`.
